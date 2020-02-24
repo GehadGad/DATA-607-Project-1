@@ -1,0 +1,152 @@
+---
+title: "Project 1"
+output: html_document
+---
+
+***Gehad Gad***
+
+***February 23, 2020***
+
+***DATA 607 - Project 1***
+
+
+
+In this project, you’re given a text file with chess tournament results where the information has some structure. Your
+job is to create an R Markdown file that generates a .CSV file (that could for example be imported into a SQL database)
+with the following information for all of the players:
+Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents
+For the first player, the information would be:
+Gary Hua, ON, 6.0, 1794, 1605
+1605 was calculated by using the pre-tournament opponents’ ratings of 1436, 1563, 1600, 1610, 1649, 1663, 1716, and
+dividing by the total number of games played.
+
+
+```{r}
+#Import libraries and/or Packages
+
+library(stringr)
+library (ggplot2)
+```
+
+
+```{r}
+
+# I Loaded the text file to my github to be read in r.
+
+file = "https://github.com/GehadGad/DATA607-Project-1/raw/master/tournamentinfo.txt"
+
+# The whole data can be seen from the link below.
+#Data <- read.table (url("https://github.com/GehadGad/DATA607-Project-1/raw/master/tournamentinfo.txt"), sep = ",")
+
+```
+
+
+```{r}
+#Display the head of the Data
+
+data=readLines(file , warn=FALSE )
+
+head(data)
+```
+
+
+```{r}
+# Data cleaning, removing separators
+data<-data[!str_detect(data,"\\-----")]
+
+# Removing headers and separators
+data<-str_split(data[3:length(data)],"\\|")
+
+```
+
+
+```{r}
+
+#Extract names of all players
+extracted<-str_extract_all(data,"[[:alpha:]-?[:alpha:]  ?]{2,}")
+names<-unlist(extracted)[str_detect(unlist(extracted),"[[:alpha:]]{3,}")]
+head(names)
+
+```
+
+
+```{r}
+#Extract state of origin
+state<-unlist(extracted)[(str_detect(unlist(extracted),"[[:alpha:]]{2}"))&(!str_detect(unlist(extracted),"[[:alpha:]]{3,}"))]
+head(state)
+
+```
+
+
+```{r}
+#Extract points
+num_data<-str_extract_all(data,"\\d{1,}+\\.?.?")
+pts<-unlist(num_data)[(str_detect(unlist(num_data),"\\d\\.\\d"))]
+head(pts)
+```
+
+```{r}
+#Extract pre->post
+rtg<-str_extract_all(data,"(( \\:)|(\\>))?.?\\d{1,}P*\\.?")
+pre_rating<-unlist(rtg)[(str_detect(unlist(rtg),"\\b\\d{3,4}P?\\b"))&(!str_detect(unlist(rtg),"\\>.?\\b\\d{3,4}P?\\b"))]
+pre<-str_replace_all(pre_rating,"P","")
+post_rating<-unlist(rtg)[str_detect(unlist(rtg),"\\>.?\\b\\d{3,4}P?\\b")]
+post<-str_replace_all(post_rating,"([>P])","")
+head(pre_rating)
+
+```
+
+
+
+```{r}
+#Extract games played by player
+games_data<-str_replace_all(str_extract_all(str_extract_all(data,"[WDL]...\\d{1,2}"),"\\.?\\d{1,2}"),"\\b[0]\\b",".")
+games<-str_detect(games_data,fixed("."))
+games_data<-games_data[!(games)]
+head(games_data)
+
+id<-seq(1,64,by=1)
+names<-str_trim(names,"both")
+state<-str_trim(state,"both")
+pre_rating<-str_trim(pre_rating,"both")
+post_rating<-str_trim(post_rating,"both")
+player_ranks<-as.data.frame(cbind(id,names,state,pts,pre_rating,post_rating))
+```
+
+```{r}
+#Calculate the mean of opponent rankings
+results<-array(0,dim=nrow(player_ranks))
+
+player_ranks[] <- lapply(player_ranks, gsub, pattern='>', replacement='')
+player_ranks[] <- lapply(player_ranks, gsub, pattern='P', replacement='')
+
+
+player_ranks$pts<-as.numeric(as.character(player_ranks$pts))
+player_ranks$pre_rating<-as.numeric(as.character(player_ranks$pre_rating))
+player_ranks$post_rating<-as.numeric(as.character(player_ranks$post_rating))
+
+#loop through all the players
+for (i in 1:nrow(player_ranks)){ 
+  #extract opponent data and query rankings
+  match_res<-as.numeric(str_split(unlist(str_extract_all(games_data[i],"\\d{1,2}"))," "))
+  #calcuate the average of opponent rankings
+results[i]<-mean(player_ranks[match_res,colnames(player_ranks)=="pre_rating"])
+};
+
+player_ranks$avg_rating<-results
+head(player_ranks)
+
+```
+
+
+
+```{r}
+
+# Export csv file.
+
+write.csv(player_ranks,"player_rank",row.names=TRUE)
+
+```
+
+
+
